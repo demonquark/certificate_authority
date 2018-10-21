@@ -1,0 +1,70 @@
+# Copyright (C) 2018 Krishna Moniz
+
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+version: '3.5'
+
+networks:
+  network1:
+    name: network1
+
+services:
+  web:
+    restart: always
+    build: ./web
+    environment:
+      - FLASK_APP=run.py
+      - FLASK_ENV=development
+    expose:
+      - "8000"
+    volumes:
+      - ./web:/srv/www/certificate_authority/web
+    # command: gunicorn -b :8000 --access-logfile - --error-logfile - app:app
+    command: flask run --host=0.0.0.0 --port 8000
+    networks:
+      - network1
+
+  dienst:
+    restart: always
+    build: ./dienst
+    environment:
+      - FLASK_APP=run.py
+      - FLASK_ENV=development
+    expose:
+      - "8000"
+    volumes:
+      - ./dienst:/srv/www/certificate_authority/dienst
+    # command: gunicorn -b :8000 --access-logfile - --error-logfile - app:app
+    command: flask run --host=0.0.0.0 --port 8000
+    networks:
+      - network1
+
+  nginx:
+    container_name: nginx
+    restart: always
+    build: ./nginx
+    ports:
+      # - "80:80"
+      # - "443:443"
+      - "8080:8080"
+      - "8081:8081"
+    volumes:
+      - ./ca/child_crt:/srv/www/certificate_authority/ssl
+      - ./etc:/srv/www/certificate_authority/etc
+      - ./web/app/static:/srv/www/certificate_authority/static
+      - ./dienst/app/static:/srv/www/certificate_authority/dienst/static
+    networks:
+      - network1
+    depends_on:
+      - web
+      - dienst

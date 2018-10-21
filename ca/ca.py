@@ -1,5 +1,19 @@
 """
 This module contains the Certificate Authority class that handles PKI related functionality.
+Copyright (C) 2018 Krishna Moniz
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 import os
 import sys
@@ -54,7 +68,7 @@ class CertAuthority(object):
             if constraints.value.ca is not True:
                 raise TypeError('The provided certificate cannot be a CA')
 
-    def createname(self, cn: str='Reader Authority', o: str='Krishna', ou: str='Test',
+    def createname(self, cn: str='kris.local', o: str='Krishna', ou: str='Test',
                    l: str='Paramaribo', s: str='Paramaribo', c: str='SR',
                    mail: str='readerca@krishna.sr') -> x509.Name:
         """Create a Certificate Signing Request"""
@@ -79,7 +93,7 @@ class CertAuthority(object):
             backend=default_backend())
         return private_key
 
-    def gencsr(self, name, private_key, key_cert_sign=False) -> x509.CertificateSigningRequest:
+    def gencsr(self, name, private_key, key_cert_sign=False, san: str='kris.local') -> x509.CertificateSigningRequest:
         """Create a Certificate Signing Request and corresponding private key"""
         # type checks
         if not (isinstance(private_key, rsa.RSAPrivateKey) or isinstance(private_key, ec.EllipticCurvePrivateKey)):
@@ -114,6 +128,9 @@ class CertAuthority(object):
                           encipher_only=False,
                           decipher_only=False),
             critical=True
+        ).add_extension(
+            x509.SubjectAlternativeName([x509.DNSName(u'kris.local')]),
+            critical=False
         ).add_extension(
             x509.ExtendedKeyUsage(extended_usages),
             critical=False
