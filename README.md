@@ -47,3 +47,8 @@ Delete all created Docker images (note the `"^certificate-authority"` filter)
 ```
 $ docker rmi $(docker image ls | grep "^certificate-authority" | awk '{print $3}')
 ```
+
+Read a certificate file
+```
+$ openssl s_client -connect google.nl:443 -showcerts
+```

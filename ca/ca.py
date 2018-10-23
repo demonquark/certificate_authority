@@ -68,9 +68,9 @@ class CertAuthority(object):
             if constraints.value.ca is not True:
                 raise TypeError('The provided certificate cannot be a CA')
 
-    def createname(self, cn: str='kris.local', o: str='Krishna', ou: str='Test',
+    def createname(self, cn: str='Krishna Intermediate CA', o: str='Krishna Organization', ou: str='Test Department',
                    l: str='Paramaribo', s: str='Paramaribo', c: str='SR',
-                   mail: str='readerca@krishna.sr') -> x509.Name:
+                   mail: str='ca@krishna.sr') -> x509.Name:
         """Create a Certificate Signing Request"""
         # create an X509 Name
         name = x509.Name([
@@ -93,7 +93,8 @@ class CertAuthority(object):
             backend=default_backend())
         return private_key
 
-    def gencsr(self, name, private_key, key_cert_sign=False, san: str='kris.local') -> x509.CertificateSigningRequest:
+    def gencsr(self, name, private_key, is_intermediate=False,
+               san: list=['kris.local']) -> x509.CertificateSigningRequest:
         """Create a Certificate Signing Request and corresponding private key"""
         # type checks
         if not (isinstance(private_key, rsa.RSAPrivateKey) or isinstance(private_key, ec.EllipticCurvePrivateKey)):
@@ -101,40 +102,47 @@ class CertAuthority(object):
         if not isinstance(name, x509.Name):
             raise TypeError('The provided name is not a x509.Name')
 
-        # assign extensions based on the certificate purpose
-        extended_usages = []
-        if key_cert_sign:
-            extended_usages.append(x509.oid.ExtendedKeyUsageOID.SERVER_AUTH)
-        else:
-            extended_usages.append(x509.oid.ExtendedKeyUsageOID.CLIENT_AUTH)
-
         # create a signing request
         request = x509.CertificateSigningRequestBuilder().subject_name(
             name
         ).add_extension(
-            x509.SubjectKeyIdentifier.from_public_key(private_key.public_key()),
-            critical=True,
-        ).add_extension(
-            x509.BasicConstraints(ca=bool(key_cert_sign), path_length=(0 if bool(key_cert_sign) else None)),
-            critical=True,
-        ).add_extension(
-            x509.KeyUsage(digital_signature=bool(not key_cert_sign),
+            x509.KeyUsage(digital_signature=True,
                           content_commitment=False,
-                          key_encipherment=bool(not key_cert_sign),
-                          data_encipherment=bool(not key_cert_sign),
+                          key_encipherment=bool(not is_intermediate),
+                          data_encipherment=bool(not is_intermediate),
                           key_agreement=False,
-                          key_cert_sign=bool(key_cert_sign),
-                          crl_sign=bool(key_cert_sign),
+                          key_cert_sign=bool(is_intermediate),
+                          crl_sign=bool(is_intermediate),
                           encipher_only=False,
                           decipher_only=False),
             critical=True
         ).add_extension(
-            x509.SubjectAlternativeName([x509.DNSName(u'kris.local')]),
-            critical=False
+            x509.BasicConstraints(ca=bool(is_intermediate), path_length=(0 if bool(is_intermediate) else None)),
+            critical=True,
         ).add_extension(
+            x509.SubjectKeyIdentifier.from_public_key(private_key.public_key()),
+            critical=False,
+        )
+
+        # assign extended usages
+        extended_usages = []
+        extended_usages.append(x509.oid.ExtendedKeyUsageOID.SERVER_AUTH)
+        extended_usages.append(x509.oid.ExtendedKeyUsageOID.CLIENT_AUTH)
+
+        request = request.add_extension(
             x509.ExtendedKeyUsage(extended_usages),
             critical=False
-        ).sign(
+        )
+
+        # assign alternative names
+        if (not is_intermediate) and isinstance(san, list):
+            alt_names = []
+            for alt_name in san:
+                alt_names.append(x509.DNSName(str(alt_name)))
+            request = request.add_extension(x509.SubjectAlternativeName(alt_names), critical=False)
+
+        # sign the CSR
+        request = request.sign(
             private_key,
             hashes.SHA256(),
             default_backend()
@@ -148,7 +156,7 @@ class CertAuthority(object):
         if not isinstance(csr, x509.CertificateSigningRequest):
             raise TypeError('The provided name is not a x509.Name')
 
-        # build the basic certificate
+        # build the certificate
         builder = x509.CertificateBuilder().subject_name(
             csr.subject
         ).issuer_name(
@@ -177,8 +185,8 @@ class CertAuthority(object):
         return certificate
 
     @classmethod
-    def createca(cls, path, passphrase: str='passphrase', cn: str='Root Authority', o: str='Krishna',
-                 ou: str='Test', l: str='Paramaribo', s: str='Paramaribo', c: str='SR',
+    def createca(cls, path, passphrase: str='passphrase', cn: str='Krishna Root CA', o: str='Krishna Organization',
+                 ou: str='Test Department', l: str='Paramaribo', s: str='Paramaribo', c: str='SR',
                  mail: str='ca@krishna.sr', days=365,
                  algorithm: str='RSA') -> (rsa.RSAPrivateKey, x509.Certificate):
         """Create a self-signed certificate that we can use as root for the CA"""
@@ -207,12 +215,6 @@ class CertAuthority(object):
         ).not_valid_after(
             datetime.datetime.utcnow() + datetime.timedelta(days=int(days))
         ).add_extension(
-            x509.SubjectKeyIdentifier.from_public_key(private_key.public_key()),
-            critical=True,
-        ).add_extension(
-            x509.BasicConstraints(ca=True, path_length=1),
-            critical=True,
-        ).add_extension(
             x509.KeyUsage(digital_signature=False,
                           content_commitment=False,
                           key_encipherment=False,
@@ -223,6 +225,12 @@ class CertAuthority(object):
                           encipher_only=False,
                           decipher_only=False),
             critical=True
+        ).add_extension(
+            x509.BasicConstraints(ca=True, path_length=1),
+            critical=True,
+        ).add_extension(
+            x509.SubjectKeyIdentifier.from_public_key(private_key.public_key()),
+            critical=False,
         ).sign(private_key, hashes.SHA256(), default_backend())
 
         # write the files to disk
@@ -278,6 +286,7 @@ def run():
     #            python ca.py createcrt root_ca passphrase child_ca password1 True
     #            python ca.py createcrt child_ca password1 child_crt password2 False
     #            python ca.py createcrt child_crt password2 failed password2 False
+    #            python ca.py createcrt root_ca passphrase child_ca passphrase False
     # readcrt:   readcrt [2:ca folder] [3:ca password] [4:crt folder] [5:crt password] [6:output folder]
     #            python ca.py readcrt root_ca passphrase child_crt password crt_output
 
@@ -309,15 +318,15 @@ def run():
         ca_passphrase = sys.argv[3]
         output_folder = sys.argv[4]
         crt_passphrase = sys.argv[5]
-        crt_key_sign = sys.argv[6].lower() in ['true', '1', 'y', 'yes']
+        is_intermediate = sys.argv[6].lower() in ['true', '1', 'y', 'yes']
 
         # read the root certificate
         ca = CertAuthority(ca_folder, ca_passphrase)
 
         # create a certificate
         private_key = ca.genkey()
-        name = ca.createname()
-        csr = ca.gencsr(name, private_key, crt_key_sign)
+        name = ca.createname(cn='kris.local')
+        csr = ca.gencsr(name, private_key, is_intermediate)
         certificate = ca.signcsr(csr)
 
         # write the outputs to disk
