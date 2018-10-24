@@ -19,6 +19,21 @@ networks:
     name: network1
 
 services:
+  ca:
+    restart: always
+    build: ./web
+    environment:
+      - FLASK_APP=run.py
+      - FLASK_ENV=development
+    expose:
+      - "8000"
+    volumes:
+      - ./web:/srv/www/certificate_authority/ca
+    # command: gunicorn -b :8000 --access-logfile - --error-logfile - app:app
+    command: flask run --host=0.0.0.0 --port 8000
+    networks:
+      - network1
+
   web:
     restart: always
     build: ./web
@@ -57,12 +72,14 @@ services:
       # - "80:80"
       # - "443:443"
       - "8080:8080"
-      - "8081:8081"
     volumes:
-      - ./ca/child_crt:/srv/www/certificate_authority/ssl
-      - ./etc:/srv/www/certificate_authority/etc
-      - ./web/app/static:/srv/www/certificate_authority/static
-      - ./dienst/app/static:/srv/www/certificate_authority/dienst/static
+      - ./nginx/dh_param:/etc/nginx/dhparam
+      - ./nginx/web_crt:/srv/www/certificate_authority/ssl/web
+      - ./nginx/api_crt:/srv/www/certificate_authority/ssl/api
+      - ./nginx/root_ca:/srv/www/certificate_authority/ssl/client
+      - ./web/app/static:/srv/www/certificate_authority/web/static
+      - ./dienst/app/static:/srv/www/certificate_authority/api/dienst/static
+      - ./ca/app/static:/srv/www/certificate_authority/api/ca/static
     networks:
       - network1
     depends_on:

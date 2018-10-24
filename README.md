@@ -52,3 +52,31 @@ Read a certificate file
 ```
 $ openssl s_client -connect google.nl:443 -showcerts
 ```
+
+Send a client request to the api
+```
+curl -v \
+  --cacert ./nginx/root_ca/cert.pem \
+  https://www.kris.local:8080/
+
+```
+
+Send a client request to the api
+```
+curl -v \
+--cacert ./nginx/root_ca/cert.pem \
+--cert ./nginx/client_crt/cert.pem \
+--key ./nginx/client_crt/key.pem \
+https://api.kris.local:8080/dienst/
+
+```
+
+Generate a more secure Diffie-Hellman parameter for nginx
+```
+openssl dhparam -out /etc/nginx/dhparam/dhparam.pem 4096
+```
+
+Create a pkcs file for the client certificate. You can import the pkcs12 file in Firefox.
+```
+openssl pkcs12 -export -in cert.pem -inkey key.pem -name "api.kris.local" -out client.p12
+```

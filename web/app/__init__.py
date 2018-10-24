@@ -1,4 +1,4 @@
-from flask import Flask, render_template
+from flask import Flask, render_template, request
 app = Flask(__name__)
 
 
@@ -17,6 +17,22 @@ def index():
     <p>This page was served from the web service.</p>
 </body>
 </html>"""
+
+
+@app.route('/other')
+def other():
+    return """
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Web service</title>
+</head>
+<body>
+    <h1>Other service</h1>
+    <p>This page should be loaded from another page ({}).</p>
+</body>
+</html>""".format(str(request.args.get('a')))
 
 
 @app.errorhandler(404)

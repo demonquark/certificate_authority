@@ -135,7 +135,7 @@ class CertAuthority(object):
         )
 
         # assign alternative names
-        if (not is_intermediate) and isinstance(san, list):
+        if (not is_intermediate) and isinstance(san, list) and len(san) > 0:
             alt_names = []
             for alt_name in san:
                 alt_names.append(x509.DNSName(str(alt_name)))
@@ -274,6 +274,10 @@ def write_to_file(path, passphrase, private_key, certificate):
     with open(filename_crt, 'wb') as f:
         f.write(certificate.public_bytes(serialization.Encoding.PEM))
 
+    filename_pass = os.path.join(path, 'global.pass')
+    with open(filename_pass, 'w') as f:
+        f.write(str(passphrase))
+
 
 # Command line interface
 def run():
@@ -282,11 +286,12 @@ def run():
     #            python ca.py createca root_ca passphrase
     # readca:    readca [2:ca folder] [3:ca password] [4:output folder]
     #            python ca.py readca root_ca passphrase ca_output
-    # createcrt: createcrt [2:ca folder] [3:ca password] [4:output folder] [5:crt password] [7:can_sign]
-    #            python ca.py createcrt root_ca passphrase child_ca password1 True
-    #            python ca.py createcrt child_ca password1 child_crt password2 False
-    #            python ca.py createcrt child_crt password2 failed password2 False
-    #            python ca.py createcrt root_ca passphrase child_ca passphrase False
+    # createcrt: createcrt [2:ca folder] [3:ca password] [4:output folder] [5:crt password] [7:is_intermediate]
+    #            python ca.py createcrt root_ca passphrase child_ca1 password1 True
+    #            python ca.py createcrt root_ca passphrase child_ca2 password1 True
+    #            python ca.py createcrt child_ca1 password1 web_crt password2 False
+    #            python ca.py createcrt child_ca1 password1 api_crt password2 False
+    #            python ca.py createcrt child_ca2 password1 client_crt password2 False
     # readcrt:   readcrt [2:ca folder] [3:ca password] [4:crt folder] [5:crt password] [6:output folder]
     #            python ca.py readcrt root_ca passphrase child_crt password crt_output
 
@@ -326,7 +331,7 @@ def run():
         # create a certificate
         private_key = ca.genkey()
         name = ca.createname(cn='kris.local')
-        csr = ca.gencsr(name, private_key, is_intermediate)
+        csr = ca.gencsr(name, private_key, is_intermediate, san=['kris.local', 'www.kris.local', 'api.kris.local'])
         certificate = ca.signcsr(csr)
 
         # write the outputs to disk
