@@ -1,6 +1,8 @@
 # Copyright (C) 2018 Krishna Moniz
 
-# Start the flask app
+# This package contains the code for the CA
+# This __init__ file will receive method calls from run.py (see parent directory)
+# and forward them to the right module (see other py files in this folder)
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -15,9 +17,6 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from app import app
 
-
-if __name__ == "__main__":
-    # run the app
-    app.run()
+def perform_action(message: str='NO MESSAGE'):
+    print(message)

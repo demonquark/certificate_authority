@@ -19,67 +19,78 @@ networks:
     name: network1
 
 services:
-  ca:
-    restart: always
-    build: ./web
-    environment:
-      - FLASK_APP=run.py
-      - FLASK_ENV=development
-    expose:
-      - "8000"
-    volumes:
-      - ./web:/srv/www/certificate_authority/ca
-    # command: gunicorn -b :8000 --access-logfile - --error-logfile - app:app
-    command: flask run --host=0.0.0.0 --port 8000
+  redis:
+    image: redis:5-alpine3.8
     networks:
       - network1
+
+  ca:
+    restart: always
+    image: certificate-authority_web:latest
+    environment:
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ./ca:/srv/www/certificate_authority/site
+    command: python run.py
+    networks:
+      - network1
+    depends_on:
+      - redis
 
   web:
     restart: always
-    build: ./web
+    build: ./builds/web
+    image: certificate-authority_web:latest
     environment:
       - FLASK_APP=run.py
       - FLASK_ENV=development
+      - PYTHONUNBUFFERED=1
     expose:
       - "8000"
     volumes:
-      - ./web:/srv/www/certificate_authority/web
+      - ./web:/srv/www/certificate_authority/site
     # command: gunicorn -b :8000 --access-logfile - --error-logfile - app:app
     command: flask run --host=0.0.0.0 --port 8000
     networks:
       - network1
+    depends_on:
+      - redis
+      - ca
 
   dienst:
     restart: always
-    build: ./dienst
+    image: certificate-authority_web:latest
     environment:
       - FLASK_APP=run.py
       - FLASK_ENV=development
+      - PYTHONUNBUFFERED=1
     expose:
       - "8000"
     volumes:
-      - ./dienst:/srv/www/certificate_authority/dienst
+      - ./dienst:/srv/www/certificate_authority/site
     # command: gunicorn -b :8000 --access-logfile - --error-logfile - app:app
     command: flask run --host=0.0.0.0 --port 8000
     networks:
       - network1
+    depends_on:
+      - redis
+      - ca
 
   nginx:
-    container_name: nginx
+    image: certificate-authority_nginx:latest
     restart: always
-    build: ./nginx
+    build: ./builds/nginx
     ports:
       # - "80:80"
       # - "443:443"
       - "8080:8080"
     volumes:
-      - ./nginx/dh_param:/etc/nginx/dhparam
       - ./nginx/web_crt:/srv/www/certificate_authority/ssl/web
       - ./nginx/api_crt:/srv/www/certificate_authority/ssl/api
       - ./nginx/root_ca:/srv/www/certificate_authority/ssl/client
-      - ./web/app/static:/srv/www/certificate_authority/web/static
-      - ./dienst/app/static:/srv/www/certificate_authority/api/dienst/static
-      - ./ca/app/static:/srv/www/certificate_authority/api/ca/static
+      - ./web/app/static:/srv/www/certificate_authority/site/web/static
+      - ./dienst/app/static:/srv/www/certificate_authority/site/api/dienst/static
+      - ./ca/app/static:/srv/www/certificate_authority/api/site/ca/static
     networks:
       - network1
     depends_on:

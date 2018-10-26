@@ -80,3 +80,25 @@ Create a pkcs file for the client certificate. You can import the pkcs12 file in
 ```
 openssl pkcs12 -export -in cert.pem -inkey key.pem -name "api.kris.local" -out client.p12
 ```
+
+# Configuration files
+
+- In the root/docker folder (.): `docker-compose.yaml`
+- In the root/docker folder (.): `.env`
+- In the web build folder (./builds/web): `config.ini`
+- In the nginx build folder (./builds/nginx): `certificate_authority.conf`
+
+## custom configuration
+### web
+For web buids, you can overwrite the default config.ini by specifying the `CONFIG_FILE` environment variable in docker-compose. Eg:
+```
+services
+  custom_web:
+    image: certificate-authority_web:latest
+    environment:
+      - CONFIG_FILE=/srv/www/certificate_authority/site/custom_config.ini
+    volumes:
+      - ./web:/srv/www/certificate_authority/site
+```
+### nginx
+Not implemented
