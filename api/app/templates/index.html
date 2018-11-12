@@ -1,0 +1,152 @@
+<html>
+  <head>
+    <title>www.kris.local</title>
+    <style>
+        .progress {
+            width: 100%;
+            text-align: center;
+        }
+    </style>
+  </head>
+  <body>
+    <h1>Flask + Celery Examples</h1>
+    <h2>Example 2: Long running task with progress updates</h2>
+    <button id="start-bg-job">Start Long Calculation</button><br><br>
+    <div id="progress"></div>
+    <div id="information"></div>
+
+    <script src="//cdnjs.cloudflare.com/ajax/libs/jquery/2.1.3/jquery.min.js"></script>
+    <script>
+        function start_long_task() {
+            // send ajax POST request to start background job
+            for(var i = 0; i < 1; i++ ){
+                $.ajax({
+                    type: 'POST',
+                    url: '/dotask',
+                    data: JSON.stringify({}),
+                    contentType: 'application/vnd.api+json; charset=utf-8',
+                    dataType: 'json',
+                    beforeSend: function (xhr) { if (get_auth_token() != null) { xhr.setRequestHeader("Authorization", get_auth_token()); }},
+                    success: function(data, status, xhr) {
+                        // Forward to the update progress side
+                        analyze_result(data, status, xhr, 1);
+                    },
+                    error: function(xhr, status, error) {
+                        // Forward to the update progress side
+                        analyze_result(null, status, xhr, 1);
+                    }
+                });
+            }
+        }
+        function analyze_result(data, status, xhr, counter){
+
+            // Get the response
+            status_url = xhr.getResponseHeader('Location');
+            status_url = status_url != null ? status_url : 'an/error'
+            task_id = status_url.split('/').pop();
+
+            // Create a div to post the results to 
+            if(status_url != null && !$('#' + task_id).length){
+                $('#progress').append('<div id=' + task_id + '></div>');
+            }
+
+            counter++;
+            if (xhr.status == 202){
+                // rerun every 750 milliseconds until the task is done
+                (function(x, y) {setTimeout( function(){update_progress(x, y)}, 2000); } )(status_url, counter);
+            } else if (xhr.status === 200){
+                // Get the content disposition
+                let disposition = xhr.getResponseHeader('Content-Disposition');
+                if(disposition && disposition.indexOf('attachment') !== -1){
+                    // get the file name and type
+                    let filename = "";
+                    let filenameRegex = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/;
+                    let matches = filenameRegex.exec(disposition);
+                    if (matches != null && matches[1]) filename = matches[1].replace(/['"]/g, '');
+                    let type = xhr.getResponseHeader('Content-Type');
+
+                    // Convert the response to a blob
+                    let blob = typeof File === 'function' ? new File([data], filename, { type: type }) : new Blob([data], { type: type });
+                    if (typeof window.navigator.msSaveBlob !== 'undefined') {
+                        // IE workaround for "HTML7007: One or more blob URLs were revoked by closing the blob for which they were created. These URLs will no longer resolve as the data backing the URL has been freed."
+                        window.navigator.msSaveBlob(blob, filename);
+                    } else {
+                        var URL = window.URL || window.webkitURL;
+                        var downloadUrl = URL.createObjectURL(blob);
+
+                        if (filename) {
+                            // use HTML5 a[download] attribute to specify filename
+                            let a = document.createElement("a");
+                            // safari doesn't support this yet
+                            if (typeof a.download === 'undefined') {
+                                window.location = downloadUrl;
+                            } else {
+                                a.href = downloadUrl;
+                                a.download = filename;
+                                document.body.appendChild(a);
+                                a.click();
+                            }
+                        } else {
+                            window.location = downloadUrl;
+                        }
+
+                        setTimeout(function () { URL.revokeObjectURL(downloadUrl); }, 100); // cleanup
+                    }
+                    $('#' + task_id).text('[' + counter + '] Success');
+                } else {
+                    // handle all other responses (basically text/json)
+                    if (data == null) {
+                        $('#' + task_id).text('[' + counter + '] Failure: null');
+                    } else {
+                        $('#' + task_id).text('[' + counter + '] Result: ' + JSON.stringify(data));
+                    }
+
+                }
+            }
+        }
+        function update_progress(status_url, counter) {
+            var xhr = new XMLHttpRequest();
+            xhr.open('GET', status_url, true);
+            xhr.onload = function () { analyze_result(this.response, this.status, xhr, counter); };
+            xhr.setRequestHeader('Content-type', 'application/vnd.api+json; charset=utf-8');
+            if (get_auth_token() != null) { xhr.setRequestHeader("Authorization", get_auth_token()); }
+            xhr.send();
+        }
+
+        function test_session_storage(){
+            try {
+                sessionStorage.setItem('test_value', 'x');
+                sessionStorage.removeItem('test_value');
+                return true;
+            } catch (e) {
+                return false;
+            }
+        }
+        function get_auth_token(){
+            try {
+                if (sessionStorage.getItem("task_id") === null) {
+                    sessionStorage.setItem('task_id', guid());
+                }
+                return sessionStorage.getItem("task_id");
+            } catch (e) {
+                return null;
+            }
+        }
+        function guid() {
+            function s4() {
+                return Math.floor((1 + Math.random()) * 0x10000).toString(16).substring(1);
+            }
+            return s4() + s4() + '-' + s4() + '-' + s4() + '-' + s4() + '-' + s4() + s4() + s4();
+        }
+        $(function() {
+            // Test the session storage
+            if (test_session_storage()){
+                $('#information').text('SUCCESS:' + get_auth_token());
+            } else {
+                $('#information').text('FAILURE: Please enable cookies.');
+            }
+            $('#start-bg-job').click(start_long_task);
+        });
+    </script>
+  </body>
+</html>

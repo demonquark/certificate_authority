@@ -1,21 +1,18 @@
 # Copyright (C) 2018 Krishna Moniz
 
-# This image functions a base for Flask apps, and thus does not contain ENV or CMD.
+# This image functions a base for Celery workers, and thus does not contain ENV or CMD.
 # The starting CMD and ENV variables should be specified in your docker-compose.yaml
 # The app files should also be copied by binding a volume
 # Likely setup:
 # services:
-#   web:
+#   worker:
 #       volumes:
 #           - ./web:/srv/www/certificate_authority/site
 #           - ./config:/srv/www/certificate_authority/config/custom
 #       environment:
-#           - FLASK_APP=run.py
-#           - FLASK_ENV=development
-#           - PYTHONUNBUFFERED=1
 #           - CONFIG_FILE=/srv/www/certificate_authority/config/custom/config.ini
-#       command: gunicorn -b :8000 --access-logfile - --error-logfile - app:app
-# For deployment, you should make a new Dockerfile incorporating the above 
+#       command: celery worker -A celery.tasks --loglevel=info
+# For deployment, you should make a new Dockerfile incorporating the above.
 # (Well... technically not the above, but the production version of the above).
 
 # This program is free software: you can redistribute it and/or modify
@@ -31,27 +28,26 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+# Start the target image
 FROM python:3.6-alpine3.8
 
-# Create the group and user to be used in this container
+# Create the user to be used in this image
 RUN adduser -S -D -H gebruiker
 
-# Copy the config file
+# Copy the configuration files to the image (and a copy of the Dockerfile for reference)
 RUN mkdir -p /srv/www/certificate_authority/config
-COPY config.ini /srv/www/certificate_authority/config/
 COPY requirements.txt /srv/www/certificate_authority/config/
-ENV CONFIG_FILE /srv/www/certificate_authority/config/config.ini
+COPY Dockerfile /srv/www/certificate_authority/config/
 
-# Install the package dependencies (this step is separated
-# from copying all the source code to avoid having to
-# re-install all python packages defined in requirements.txt
-# whenever any source code change is made)
+# Install the required python packages for Celery
+# This step is done at the image level, to avoid having to
+# re-install python packages whenever we restart a container.
 RUN pip install --no-cache-dir -r /srv/www/certificate_authority/config/requirements.txt
-RUN pip install gunicorn
 
 # Create the working directory (and set it as the working directory)
 RUN mkdir -p /srv/www/certificate_authority/site
 WORKDIR /srv/www/certificate_authority/site
 
+# Give the user ownership of the working directory
 RUN chown -R gebruiker /srv/www/certificate_authority
 USER gebruiker

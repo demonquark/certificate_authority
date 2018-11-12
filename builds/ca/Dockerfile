@@ -31,27 +31,56 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+# Start a builder image
+FROM python:3.6-alpine3.8 as builder
+
+# Install gcc on the builder
+RUN apk update \
+    && apk add --virtual build-dependencies \
+        build-base \
+        gcc \
+        python-dev \
+        musl-dev \
+        libffi-dev \
+        openssl-dev
+
+# Install / compile the required packages on the builder
+# Some packages will be built using gcc
+# This step is done at the image level, to avoid having to
+# re-install python packages whenever we restart a container.
+COPY requirements.txt .
+RUN pip install -r requirements.txt
+
+
+# Start the target image
 FROM python:3.6-alpine3.8
 
-# Create the group and user to be used in this container
+# Create the group and user to be used in this image
 RUN adduser -S -D -H gebruiker
 
-# Copy the config file
+# Copy / install the required packages from the builder cache
+COPY --from=builder /root/.cache /root/.cache
+COPY --from=builder requirements.txt .
+RUN pip install -r requirements.txt && rm -rf /root/.cache && rm -f requirements.txt
+
+RUN  apk update \
+  && apk add openssl \
+  && rm -rf /var/cache/apk/*
+
+# Copy the configuration files to the image (and a copy of the Dockerfile for reference)
 RUN mkdir -p /srv/www/certificate_authority/config
 COPY config.ini /srv/www/certificate_authority/config/
 COPY requirements.txt /srv/www/certificate_authority/config/
+COPY Dockerfile /srv/www/certificate_authority/config/
 ENV CONFIG_FILE /srv/www/certificate_authority/config/config.ini
 
-# Install the package dependencies (this step is separated
-# from copying all the source code to avoid having to
-# re-install all python packages defined in requirements.txt
-# whenever any source code change is made)
-RUN pip install --no-cache-dir -r /srv/www/certificate_authority/config/requirements.txt
+# Install gunicorn 
 RUN pip install gunicorn
 
 # Create the working directory (and set it as the working directory)
 RUN mkdir -p /srv/www/certificate_authority/site
 WORKDIR /srv/www/certificate_authority/site
 
+# Give the user ownership of the working directory
 RUN chown -R gebruiker /srv/www/certificate_authority
 USER gebruiker

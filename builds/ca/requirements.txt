@@ -1,4 +1,5 @@
 Flask==1.0.2
 redis==2.10.6
 requests==2.18.4
-celery==4.2.1
+pyOpenSSL==18.0.0
+cryptography==2.3.1

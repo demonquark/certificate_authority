@@ -1,7 +1,30 @@
-# certificate_authority
-Python implementation of a certificate authority to issue client certificates
+# UNDER CONSTRUCTION
+The current version of this code is **incomplete**.
+The goal of this project is to set up a docker network with certificate authority. Users should be able to:
+- Register with the certificate authority and receive a pkcs12 package containing a key and TLS certificate
+- Sign data with private keys
+- Use their received pkcs12 key client authority to access and verify the signed data
 
-# Instructions
+As of now, **the code does not work**.
+- The client authority code can be run from the command line (see `/ca/app/ca.py`)
+- The project uses nginx as a reverse proxy (see `/builds/nginx/`)
+- The project uses celery to manage background tasks
+
+## Containers
+There are 4 services
+- API: this service is public facing and requires client authorization
+- WEB: this service is public facing and does not require client authorization
+- DIENST: this service uses private keys to digitally sign data
+- CA: this service is the certificate authority
+
+As with the rest of the code, this read me is also not complete. The text below is just some notes that might be useful during development.
+
+# certificate_authority
+Python implementation of a certificate authority to issue client certificates.
+
+This version of the implementation is not complete
+
+## Instructions
 
 Build all of the images in preparation for running your application:
 ```

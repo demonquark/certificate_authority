@@ -24,14 +24,37 @@ services:
     networks:
       - network1
 
-  ca:
+  worker:
+    image: certificate-authority_worker:latest
+    # build: ./builds/celery
+    volumes:
+        - ./api:/srv/www/certificate_authority/site
+        - ./builds/web:/srv/www/certificate_authority/config/custom
+    environment:
+        - CONFIG_FILE=/srv/www/certificate_authority/config/custom/config.ini
+    command: celery worker -A internal_api.async_api --loglevel=info
+    networks:
+      - network1
+    depends_on:
+      - redis
+
+  api:
     restart: always
+    # build: ./builds/web
     image: certificate-authority_web:latest
     environment:
+      - FLASK_APP=run.py
+      - FLASK_ENV=development
       - PYTHONUNBUFFERED=1
+      - CONFIG_FILE=/srv/www/certificate_authority/config/custom/config.ini
+      - CONFIG_SECTION=web
     volumes:
-      - ./ca:/srv/www/certificate_authority/site
-    command: python run.py
+      - ./api:/srv/www/certificate_authority/site
+      - ./builds/web:/srv/www/certificate_authority/config/custom
+    expose:
+      - "8000"
+    # command: gunicorn -b :8000 --access-logfile - --error-logfile - app:app
+    command: flask run --host=0.0.0.0 --port 8000
     networks:
       - network1
     depends_on:
@@ -39,23 +62,46 @@ services:
 
   web:
     restart: always
-    build: ./builds/web
+    # build: ./builds/web
     image: certificate-authority_web:latest
     environment:
       - FLASK_APP=run.py
       - FLASK_ENV=development
       - PYTHONUNBUFFERED=1
-    expose:
-      - "8000"
+      - CONFIG_FILE=/srv/www/certificate_authority/config/custom/config.ini
+      - CONFIG_SECTION=web
     volumes:
       - ./web:/srv/www/certificate_authority/site
+      - ./builds/web:/srv/www/certificate_authority/config/custom
+    expose:
+      - "8000"
     # command: gunicorn -b :8000 --access-logfile - --error-logfile - app:app
     command: flask run --host=0.0.0.0 --port 8000
     networks:
       - network1
     depends_on:
       - redis
-      - ca
+
+  ca:
+    restart: always
+    image: certificate-authority_ca:latest
+    # build: ./builds/ca
+    environment:
+      - FLASK_APP=run.py
+      - FLASK_ENV=development
+      - PYTHONUNBUFFERED=1
+      - CONFIG_FILE=/srv/www/certificate_authority/config/custom/config.ini
+      - CONFIG_SECTION=ca
+    volumes:
+      - ./ca:/srv/www/certificate_authority/site
+      - ./builds/web:/srv/www/certificate_authority/config/custom
+    expose:
+      - "8000"
+    command: flask run --host=0.0.0.0 --port 8000
+    networks:
+      - network1
+    depends_on:
+      - redis
 
   dienst:
     restart: always
@@ -64,22 +110,23 @@ services:
       - FLASK_APP=run.py
       - FLASK_ENV=development
       - PYTHONUNBUFFERED=1
-    expose:
-      - "8000"
+      - CONFIG_FILE=/srv/www/certificate_authority/config/custom/config.ini
     volumes:
       - ./dienst:/srv/www/certificate_authority/site
+      - ./builds/web:/srv/www/certificate_authority/config/custom
+    ports:
+      - "8000"
     # command: gunicorn -b :8000 --access-logfile - --error-logfile - app:app
     command: flask run --host=0.0.0.0 --port 8000
     networks:
       - network1
     depends_on:
       - redis
-      - ca
 
   nginx:
     image: certificate-authority_nginx:latest
     restart: always
-    build: ./builds/nginx
+    # build: ./builds/nginx
     ports:
       # - "80:80"
       # - "443:443"
@@ -89,10 +136,9 @@ services:
       - ./nginx/api_crt:/srv/www/certificate_authority/ssl/api
       - ./nginx/root_ca:/srv/www/certificate_authority/ssl/client
       - ./web/app/static:/srv/www/certificate_authority/site/web/static
-      - ./dienst/app/static:/srv/www/certificate_authority/site/api/dienst/static
-      - ./ca/app/static:/srv/www/certificate_authority/api/site/ca/static
+      - ./api/app/static:/srv/www/certificate_authority/site/api/static
     networks:
       - network1
     depends_on:
-      - web
+      # - web
       - dienst

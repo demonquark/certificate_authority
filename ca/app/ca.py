@@ -234,7 +234,7 @@ class CertAuthority(object):
         ).sign(private_key, hashes.SHA256(), default_backend())
 
         # write the files to disk
-        write_to_file(path, passphrase, private_key, certificate)
+        # write_to_file(path, passphrase, private_key, certificate)
 
         return private_key, certificate
 
